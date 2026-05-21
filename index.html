@@ -31,10 +31,6 @@
 </head>
 <body class="bg-pink-50 text-gray-800 font-sans min-h-screen flex flex-col items-center relative">
 
-    <div style="position: absolute; top: -9999px; left: -9999px; width: 300px; height: 300px;">
-        <div id="yt-player"></div>
-    </div>
-
     <audio id="bgm" src="lovemikibgm.mp3" loop preload="auto"></audio>
     <audio id="voice-reward-50" src="ganbaro.aac" preload="auto"></audio>
     <audio id="voice-reward-comp" src="daisuki.aac" preload="auto"></audio>
@@ -111,6 +107,9 @@
                     <div id="reward-100-container">
                         </div>
 
+                    <div id="yt-container" class="mt-5 hidden w-full aspect-video rounded-lg overflow-hidden border-4 border-pink-300 shadow-md">
+                        <div id="yt-player"></div>
+                    </div>
                     <div id="rebirth-container" class="mt-6 hidden">
                         <div class="border-t-2 border-dashed border-pink-200 mb-5"></div>
                         <p class="text-xs text-gray-600 mb-2 font-bold">
@@ -131,7 +130,7 @@
                     </div>
                 </div>
 
-            </div>
+            </div>       
         </main>
     </div>
 
@@ -178,7 +177,7 @@
 
         window.onYouTubeIframeAPIReady = function() {
             ytPlayer = new YT.Player('yt-player', {
-                height: '300', width: '300', videoId: '7f8tsqDV094',
+                height: '100%', width: '100%', videoId: '7f8tsqDV094', // サイズを枠にピッタリ合わせる設定に変更！
                 playerVars: { 'playsinline': 1, 'controls': 1 },
                 events: {
                     'onStateChange': function(event) {
@@ -600,7 +599,7 @@
                 audio.currentTime = 0;
                 audio.play().catch(e => {
                     console.error(e);
-                    alert(`音声の再生に失敗したよ😭\n※「daisuki.aac」がNetlifyにアップされているか確認してね！`);
+                    alert(`音声の再生に失敗したよ😭\n※「daisuki.aac」がアップされているか確認してね！`);
                 });
             }
         }
@@ -613,6 +612,9 @@
                 return;
             }
             
+            // 🌟 修正ポイント：YouTubeの枠を表示させる！
+            document.getElementById('yt-container').classList.remove('hidden');
+
             if(currentPlayingBtnId && currentPlayingBtnId !== btnId) {
                 let oldBtn = document.getElementById(currentPlayingBtnId);
                 if(oldBtn) {
