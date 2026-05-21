@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>みきちゃん大好きアプリ</title>
+    <link rel="icon" href="lovemiki.png" type="image/png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <style>
+        body { touch-action: manipulation; user-select: none; -webkit-user-select: none; overflow-x: hidden; }
+        .grid-container {
+            display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px;
+            background-color: #fce7f3; padding: 4px; border-radius: 0.5rem;
+        }
+        .cell {
+            aspect-ratio: 1/1; background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 0.25rem; display: flex; align-items: center; justify-content: center;
+            transition: transform 0.1s ease-out; cursor: pointer; overflow: hidden; max-width: 100%;
+        }
+        .cell:active { background-color: rgba(255, 200, 200, 0.9); }
+        .level-1 { font-size: 1.25rem; }
+        .level-2 { font-size: 1.75rem; }
+        .level-3 { font-size: 2rem; }
+        .level-4 { font-size: 2rem; filter: drop-shadow(0 0 4px gold); }
+        .level-5 { font-size: 1.5rem; opacity: 0.9; }
+        @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+        .anim-pop { animation: pop 0.2s ease-out; }
+        .tab-btn.active { border-bottom: 2px solid #ec4899; color: #ec4899; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-pink-50 text-gray-800 font-sans min-h-screen flex flex-col items-center relative">
+
+    <div style="position: absolute; top: -9999px; left: -9999px; width: 300px; height: 300px;">
+        <div id="yt-player"></div>
+    </div>
+
+    <audio id="bgm" src="lovemikibgm.mp3" loop preload="auto"></audio>
+    <audio id="voice-reward-50" src="ganbaro.aac" preload="auto"></audio>
+    <audio id="voice-reward-comp" src="daisuki.aac" preload="auto"></audio>
+    
+    <audio id="card-voice-player" preload="auto"></audio>
+
+    <div class="w-full max-w-md mx-auto bg-white min-h-screen shadow-xl relative flex flex-col z-10">
+        
+        <header class="bg-pink-400 text-white p-4 pt-12 text-center shadow-md relative z-20">
+            <button id="bgm-toggle-btn" onclick="toggleBGM(event)" class="absolute left-4 top-3 bg-gray-400 border-2 border-white hover:bg-gray-500 px-3 py-1.5 rounded-full text-white text-xs font-bold transition shadow-md flex items-center justify-center gap-1 z-30">
+                🔇 BGM: OFF
+            </button>
+            <h1 class="text-xl font-bold mb-1 mt-2">みきちゃん大好きアプリ</h1>
+            <div class="inline-block bg-white text-pink-500 px-4 py-1 rounded-full text-sm font-bold shadow-inner">
+                <span id="header-points">LoveMiki 0 pt</span>
+            </div>
+        </header>
+
+        <div class="flex border-b border-gray-200 bg-white">
+            <button onclick="switchTab('game')" id="tab-game" class="tab-btn active flex-1 py-3 text-sm text-gray-500 transition">ゲーム</button>
+            <button onclick="switchTab('gacha')" id="tab-gacha" class="tab-btn flex-1 py-3 text-sm text-gray-500 transition">ガチャ</button>
+            <button onclick="switchTab('collection')" id="tab-collection" class="tab-btn flex-1 py-3 text-sm text-gray-500 transition">図鑑</button>
+        </div>
+
+        <main class="flex-1 overflow-y-auto pb-6">
+            
+            <div id="view-game" class="p-4 flex flex-col items-center">
+                <div class="w-full flex justify-between items-end mb-2 px-2">
+                    <div class="text-sm font-bold text-gray-600 pb-1">NEXT: <span id="next-block-preview" class="text-2xl ml-1">🩷</span></div>
+                    <div class="text-right">
+                        <div class="text-[11px] font-bold text-pink-400 mb-[-4px]">BEST: <span id="best-score-display">0</span></div>
+                        <div class="text-lg font-bold text-pink-500">残り <span id="time-left" class="text-2xl">30</span> 秒</div>
+                    </div>
+                </div>
+                <div id="game-grid" class="grid-container w-full mb-4 shadow-inner"></div>
+                <button id="start-btn" onclick="startGame()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-full shadow-lg hover:bg-pink-600 active:scale-95 transition">
+                    ゲームスタート！ (30秒)
+                </button>
+            </div>
+
+            <div id="view-gacha" class="p-4 hidden flex-col items-center">
+                <div class="w-full aspect-[16/9] bg-pink-100 rounded-2xl flex items-center justify-center mb-6 shadow-inner border-4 border-pink-200 overflow-hidden relative">
+                    <img id="gacha-pack-img" src="cardpack.jpg" class="absolute w-full h-full object-cover">
+                </div>
+                <p class="text-center text-sm text-gray-600 mb-6">貯めた<strong>LoveMikiポイント</strong>で<br>カードパックを引こう！🌈</p>
+                <div class="flex flex-col gap-4 w-full px-4 text-center">
+                    <button id="gacha-btn-1" onclick="pullGacha(1)" class="bg-blue-400 text-white font-bold py-3 rounded-full shadow-md hover:bg-blue-500 active:scale-95 transition disabled:opacity-50">1回引く (1,000pt)</button>
+                    <button id="gacha-btn-10" onclick="pullGacha(10)" class="bg-yellow-400 text-white font-bold py-3 rounded-full shadow-md hover:bg-yellow-500 active:scale-95 transition disabled:opacity-50">10連ガチャ (10,000pt)</button>
+                </div>
+            </div>
+
+            <div id="view-collection" class="p-4 hidden">
+                <div class="flex justify-between items-end mb-4 px-1">
+                    <h2 class="text-lg font-bold text-gray-700">アイテム図鑑</h2>
+                    <span class="text-sm text-pink-500 font-bold">収集率: <span id="collection-rate">0</span>%</span>
+                </div>
+
+                <div id="collection-grid" class="grid grid-cols-2 gap-x-4 gap-y-6 mb-8"></div>
+
+                <div class="bg-pink-50 rounded-xl p-5 text-center shadow-inner border-2 border-pink-200">
+                    <h3 class="text-pink-600 font-bold mb-4">🎁 スペシャル報酬 🎁</h3>
+                    
+                    <div class="mb-5" id="reward-50-container">
+                        <p class="text-xs text-gray-600 mb-2 font-bold">
+                            <span class="text-pink-500">【初回限定】</span><br>図鑑50%達成でみきちゃんボイスが解放！
+                        </p>
+                        <button id="reward-btn-50" onclick="playVoiceAndStopYouTube('voice-reward-50')" disabled class="w-full bg-gray-300 text-gray-500 font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 cursor-not-allowed transition">
+                            🔒 50%コンプで解放！
+                        </button>
+                    </div>
+                    
+                    <div class="border-t-2 border-dashed border-pink-200 mb-5"></div>
+                    
+                    <div id="reward-100-container">
+                        </div>
+
+                    <div id="rebirth-container" class="mt-6 hidden">
+                        <div class="border-t-2 border-dashed border-pink-200 mb-5"></div>
+                        <p class="text-xs text-gray-600 mb-2 font-bold">
+                            図鑑をリセットして、さらに上の高みへ…！？<br>（ポイントはそのまま引き継がれます）
+                        </p>
+                        <button onclick="doRebirth()" class="w-full bg-gradient-to-r from-yellow-300 to-yellow-500 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition shadow-lg">
+                            👑 転生して周回数(👑)を増やす！
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-8 bg-gray-100 rounded-xl p-4 text-center shadow-sm border border-gray-300">
+                    <h3 class="text-gray-700 font-bold mb-2 text-sm">⚙️ データ引き継ぎ</h3>
+                    <p class="text-[10px] text-gray-500 mb-3">データが消えないように「ふっかつのじゅもん」をメモしておこう！</p>
+                    <div class="flex gap-2 justify-center">
+                        <button onclick="exportData()" class="bg-gray-600 text-white text-xs font-bold py-2 px-4 rounded shadow hover:bg-gray-700">じゅもんを聞く</button>
+                        <button onclick="importData()" class="bg-pink-500 text-white text-xs font-bold py-2 px-4 rounded shadow hover:bg-pink-600">じゅもんを唱える</button>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <div id="modal-gameover" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl">
+            <h2 class="text-2xl font-bold text-pink-500 mb-2">タイムアップ！</h2>
+            <p class="text-gray-600 mb-1">今回の獲得LoveMikiポイント</p>
+            <div class="text-5xl font-bold text-gray-800 mb-2">+<span id="result-score">0</span></div>
+            <div class="bg-gray-100 rounded-lg p-3 mb-4 mt-4">
+                <p class="text-xs text-gray-500 font-bold mb-1">今回のプレイランク</p>
+                <div id="result-rank" class="text-3xl font-bold text-gray-800">C</div>
+            </div>
+            <p id="highscore-msg" class="text-pink-500 font-bold mb-4 hidden animate-bounce">👑 ハイスコア更新！ 👑</p>
+            <button onclick="closeModal('modal-gameover')" class="w-full bg-pink-500 text-white font-bold py-3 rounded-full hover:bg-pink-600 transition">OK</button>
+        </div>
+    </div>
+
+    <div id="modal-gacha" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl max-h-[80vh] overflow-y-auto">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">ガチャ結果</h2>
+            <div id="gacha-result-list" class="mb-6"></div>
+            <button onclick="closeModal('modal-gacha')" class="w-full bg-blue-500 text-white font-bold py-3 rounded-full hover:bg-blue-600 transition">閉じる</button>
+        </div>
+    </div>
+
+    <div id="modal-image" class="fixed inset-0 bg-black/80 z-[60] hidden flex items-center justify-center p-4" onclick="closeModal('modal-image')">
+        <div class="relative w-full max-w-sm flex flex-col items-center" onclick="event.stopPropagation()">
+            <img id="enlarged-image" src="" class="w-full h-auto rounded-2xl shadow-2xl mb-4 border-4 border-white object-cover aspect-square">
+            <div id="enlarged-name" class="text-white text-2xl font-bold bg-pink-500/80 px-6 py-2 rounded-full shadow-lg mb-2"></div>
+            
+            <div id="enlarged-voice-status" class="text-white text-sm font-bold bg-gray-800/80 px-4 py-1 rounded-full mb-4">
+                🔒 転生〇回目でボイス解放
+            </div>
+
+            <button onclick="closeModal('modal-image')" class="mt-4 bg-white text-pink-500 font-bold py-3 px-8 rounded-full shadow-lg hover:bg-gray-100 active:scale-95 transition">
+                閉じる
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let ytPlayer;
+        let currentPlayingBtnId = null;
+
+        window.onYouTubeIframeAPIReady = function() {
+            ytPlayer = new YT.Player('yt-player', {
+                height: '300', width: '300', videoId: '7f8tsqDV094',
+                playerVars: { 'playsinline': 1, 'controls': 1 },
+                events: {
+                    'onStateChange': function(event) {
+                        if(!currentPlayingBtnId) return;
+                        const btn = document.getElementById(currentPlayingBtnId);
+                        if(event.data === YT.PlayerState.PLAYING) {
+                            btn.innerHTML = "🎶 再生中… 🎶";
+                            btn.classList.remove('animate-pulse');
+                        } else if(event.data === YT.PlayerState.ENDED || event.data === YT.PlayerState.PAUSED) {
+                            let title = btn.getAttribute('data-title');
+                            btn.innerHTML = `💖 ${title} 💖`;
+                            btn.classList.add('animate-pulse');
+                        }
+                    },
+                    'onError': function(event) {
+                        console.error("YouTube Error Code: ", event.data);
+                        if(currentPlayingBtnId) {
+                            const btn = document.getElementById(currentPlayingBtnId);
+                            btn.innerHTML = `🔇 再生エラー`;
+                        }
+                    }
+                }
+            });
+        }
+
+        const rewardYtIds = ['7f8tsqDV094', 'lqk8DfVq8dA', 'hZFDys-OUiE', '_EffgRSaiFc', 'K6DHiakxPwE']; 
+
+        let isBgmOn = false;
+        function toggleBGM(e) {
+            if(e) e.stopPropagation(); 
+            const bgm = document.getElementById('bgm');
+            const btn = document.getElementById('bgm-toggle-btn');
+            if (isBgmOn) {
+                bgm.pause(); isBgmOn = false;
+                btn.innerHTML = '🔇 BGM: OFF';
+                btn.className = 'absolute left-4 top-3 bg-gray-400 border-2 border-white hover:bg-gray-500 px-3 py-1.5 rounded-full text-white text-xs font-bold transition shadow-md flex items-center justify-center gap-1 z-30';
+            } else {
+                bgm.volume = 0.3; bgm.play().catch(e=>{}); isBgmOn = true;
+                btn.innerHTML = '🔊 BGM: ON';
+                btn.className = 'absolute left-4 top-3 bg-pink-500 border-2 border-white hover:bg-pink-600 px-3 py-1.5 rounded-full text-white text-xs font-bold transition shadow-md flex items-center justify-center gap-1 z-30';
+            }
+        }
+
+        const STORAGE_KEY = 'mikiAppSaveData';
+        let appData = { points: 0, items: [], totalGachaCount: 0, highScore: 0, lapCount: 0 };
+        let isGachaPlaying = false; 
+
+        function loadData() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    appData = JSON.parse(saved);
+                    if(!appData.items) appData.items = [];
+                    if(appData.lapCount === undefined) appData.lapCount = 0;
+                } catch(e) {}
+            }
+            updatePointsUI();
+            document.getElementById('best-score-display').innerText = (appData.highScore||0).toLocaleString();
+        }
+
+        function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); updatePointsUI(); }
+
+        function updatePointsUI() {
+            let lapText = appData.lapCount > 0 ? ` 👑x${appData.lapCount}` : '';
+            document.getElementById('header-points').innerText = `LoveMiki ${appData.points.toLocaleString()} pt${lapText}`;
+        }
+
+        function addPoints(amount) { appData.points += amount; saveData(); }
+
+        const ITEMS = [];
+        for(let i=1; i<=10; i++) {
+            let num = String(i).padStart(2, '0');
+            ITEMS.push({id: i, name: `ノーマル${num}`, rarity: 'N', color: 'bg-gray-200', reqLap: 1, file: `n${num}`});
+        }
+        for(let i=1; i<=4; i++) {
+            let num = String(i).padStart(2, '0');
+            ITEMS.push({id: 10 + i, name: `レア${num}`, rarity: 'R', color: 'bg-yellow-100', reqLap: 2, file: `r${num}`});
+        }
+        for(let i=1; i<=3; i++) {
+            let num = String(i).padStart(2, '0');
+            ITEMS.push({id: 14 + i, name: `Sレア${num}`, rarity: 'SR', color: 'bg-blue-100', reqLap: 3, file: `sr${num}`});
+        }
+        for(let i=1; i<=2; i++) {
+            let num = String(i).padStart(2, '0');
+            ITEMS.push({id: 17 + i, name: `SSレア${num}`, rarity: 'SSR', color: 'bg-red-100', reqLap: 4, file: `ssr${num}`});
+        }
+        ITEMS.push({id: 20, name: `Lレア01`, rarity: 'LR', color: 'bg-pink-200', reqLap: 5, file: `lr01`});
+
+        // ==========================================
+        // ゲームロジック
+        // ==========================================
+        const ROWS = 10; const COLS = 6;
+        const BLOCK_TYPES = {
+            0: { emoji: '', level: 0 }, 1: { emoji: '🩷', level: 1, mergeScore: 50 },
+            2: { emoji: '💖', level: 2, mergeScore: 100 }, 3: { emoji: '💝', level: 3, mergeScore: 500 },
+            4: { emoji: '🌈', level: 4, mergeScore: 2000 }, 5: { emoji: '👾', level: 5, mergeScore: 0 } 
+        };
+        let gameState = { grid: [], isActive: false, isResolving: false, timeLeft: 0, score: 0, nextBlock: 1, activeBlock: null };
+        let gameTimer = null; let fallTimer = null;
+
+        function initGridHTML() {
+            const container = document.getElementById('game-grid'); container.innerHTML = '';
+            for(let r=0; r<ROWS; r++) {
+                for(let c=0; c<COLS; c++) {
+                    let div = document.createElement('div'); div.id = `cell-${r}-${c}`; div.className = 'cell';
+                    div.onclick = () => moveActiveBlock(c); container.appendChild(div);
+                }
+            }
+        }
+
+        function renderGrid(animateCells = []) {
+            for(let r=0; r<ROWS; r++) {
+                for(let c=0; c<COLS; c++) {
+                    let cell = document.getElementById(`cell-${r}-${c}`);
+                    let val = gameState.grid[r][c];
+                    let isActiveCell = (gameState.activeBlock && gameState.activeBlock.r === r && gameState.activeBlock.c === c);
+                    let displayVal = isActiveCell ? gameState.activeBlock.val : val;
+                    cell.innerText = BLOCK_TYPES[displayVal].emoji;
+                    cell.className = `cell level-${BLOCK_TYPES[displayVal].level}`;
+                    if (displayVal !== 0) cell.classList.add('bg-white', 'shadow-sm'); else cell.classList.remove('bg-white', 'shadow-sm');
+                    if (animateCells.some(pos => pos.r === r && pos.c === c)) {
+                        cell.classList.add('anim-pop'); setTimeout(() => cell.classList.remove('anim-pop'), 200);
+                    }
+                }
+            }
+        }
+
+        function spawnActiveBlock() {
+            if (!gameState.isActive || gameState.isResolving) return;
+            let availableCols = []; for(let c=0; c<COLS; c++) if(gameState.grid[0][c] === 0) availableCols.push(c);
+            if(availableCols.length === 0) return; 
+            let spawnCol = availableCols[Math.floor(Math.random() * availableCols.length)];
+            gameState.activeBlock = { r: 0, c: spawnCol, val: gameState.nextBlock };
+            if(gameState.activeBlock.val === 1) { gameState.score += 10; addPoints(10); }
+            generateNextBlock(); renderGrid(); startFallTimer();
+        }
+
+        function startFallTimer() {
+            if (fallTimer) clearTimeout(fallTimer);
+            if (!gameState.isActive || gameState.isResolving || !gameState.activeBlock) return;
+            let interval = 50 + (150 * (gameState.timeLeft / 30));
+            fallTimer = setTimeout(updateFall, interval);
+        }
+
+        function updateFall() {
+            if (!gameState.isActive || gameState.isResolving || !gameState.activeBlock) return;
+            let nextR = gameState.activeBlock.r + 1;
+            if (nextR >= ROWS || gameState.grid[nextR][gameState.activeBlock.c] !== 0) lockActiveBlock();
+            else { gameState.activeBlock.r = nextR; renderGrid(); startFallTimer(); }
+        }
+
+        function moveActiveBlock(targetCol) {
+            if (!gameState.isActive || gameState.isResolving || !gameState.activeBlock) return;
+            if (gameState.activeBlock.c === targetCol) {
+                let dropR = gameState.activeBlock.r;
+                while (dropR + 1 < ROWS && gameState.grid[dropR + 1][gameState.activeBlock.c] === 0) dropR++;
+                gameState.activeBlock.r = dropR; renderGrid();
+                if (fallTimer) clearTimeout(fallTimer); lockActiveBlock();
+            } else {
+                if (gameState.grid[gameState.activeBlock.r][targetCol] === 0) {
+                    gameState.activeBlock.c = targetCol; renderGrid();
+                }
+            }
+        }
+
+        function lockActiveBlock() {
+            gameState.grid[gameState.activeBlock.r][gameState.activeBlock.c] = gameState.activeBlock.val;
+            gameState.activeBlock = null; gameState.isResolving = true; setTimeout(resolveBoard, 100);
+        }
+
+        function applyGravity() {
+            let moved = false;
+            for(let c=0; c<COLS; c++) {
+                for(let r=ROWS-2; r>=0; r--) {
+                    if(gameState.grid[r][c] !== 0 && gameState.grid[r+1][c] === 0) {
+                        gameState.grid[r+1][c] = gameState.grid[r][c]; gameState.grid[r][c] = 0; moved = true;
+                    }
+                }
+            }
+            return moved;
+        }
+
+        function checkInteractions() {
+            for(let c=0; c<COLS; c++) { for(let r=ROWS-2; r>=0; r--) if(processPair(r, c, r+1, c)) return [{r, c}, {r: r+1, c}]; }
+            for(let r=ROWS-1; r>=0; r--) { for(let c=0; c<COLS-1; c++) if(processPair(r, c, r, c+1)) return [{r, c}, {r, c: c+1}]; }
+            return null;
+        }
+
+        function processPair(r1, c1, r2, c2) {
+            let v1 = gameState.grid[r1][c1]; let v2 = gameState.grid[r2][c2];
+            if(v1 === 0 || v2 === 0) return false;
+            if(v1 === v2 && v1 >= 1 && v1 <= 3) {
+                gameState.grid[r2][c2] = v1 + 1; gameState.grid[r1][c1] = 0;
+                let earned = BLOCK_TYPES[v1].mergeScore; gameState.score += earned; addPoints(earned); return true;
+            }
+            if(v1 === 4 && v2 === 4) { gameState.grid[r1][c1] = 0; gameState.grid[r2][c2] = 0; gameState.score += 2000; addPoints(2000); return true; }
+            if(v1 === 5 && v2 === 5) { gameState.grid[r1][c1] = 0; gameState.grid[r2][c2] = 0; return true; }
+            if(v1 === 5 || v2 === 5) {
+                let ojamaR = (v1 === 5) ? r1 : r2; let ojamaC = (v1 === 5) ? c1 : c2;
+                let heartR = (v1 === 5) ? r2 : r1; let heartC = (v1 === 5) ? c2 : c1;
+                let heartVal = gameState.grid[heartR][heartC];
+                gameState.grid[ojamaR][ojamaC] = 0;
+                if(heartVal === 1 || heartVal === 4) gameState.grid[heartR][heartC] = 0; else gameState.grid[heartR][heartC] = heartVal - 1; 
+                return true;
+            }
+            return false;
+        }
+
+        function resolveBoard() {
+            if(!gameState.isActive) return;
+            if(applyGravity()) { renderGrid(); setTimeout(resolveBoard, 50); return; }
+            let pair = checkInteractions();
+            if(pair) { renderGrid(pair); setTimeout(resolveBoard, 250); return; }
+            gameState.isResolving = false; setTimeout(spawnActiveBlock, 50);
+        }
+
+        function generateNextBlock() {
+            let ojamaProb = (gameState.timeLeft <= 10) ? 0.4 : 0.15;
+            gameState.nextBlock = Math.random() < ojamaProb ? 5 : 1;
+            document.getElementById('next-block-preview').innerText = BLOCK_TYPES[gameState.nextBlock].emoji;
+        }
+
+        function startGame() {
+            if(gameState.isActive) return;
+            gameState.grid = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+            gameState.score = 0; gameState.timeLeft = 30; gameState.isActive = true;
+            document.getElementById('start-btn').classList.add('hidden');
+            generateNextBlock(); renderGrid(); setTimeout(spawnActiveBlock, 500);
+            gameTimer = setInterval(() => {
+                gameState.timeLeft--; document.getElementById('time-left').innerText = gameState.timeLeft;
+                if(gameState.timeLeft <= 0) endGame();
+            }, 1000);
+        }
+
+        function endGame() {
+            clearInterval(gameTimer); if(fallTimer) clearTimeout(fallTimer);
+            gameState.isActive = false;
+            let rank = "C"; let rankColor = "text-gray-500";
+            if(gameState.score >= 50000) { rank = "🌈 神 (みきちゃん級) 🌈"; rankColor = "text-pink-500"; }
+            else if(gameState.score >= 30000) { rank = "SS"; rankColor = "text-red-500"; }
+            else if(gameState.score >= 10000) { rank = "S"; rankColor = "text-yellow-500"; }
+            else if(gameState.score >= 5000) { rank = "A"; rankColor = "text-blue-500"; }
+            else if(gameState.score >= 1000) { rank = "B"; rankColor = "text-green-500"; }
+            document.getElementById('result-rank').innerText = rank; document.getElementById('result-rank').className = `text-3xl font-bold ${rankColor}`;
+            let isNewRecord = false;
+            if(gameState.score > appData.highScore) { appData.highScore = gameState.score; saveData(); isNewRecord = true; document.getElementById('best-score-display').innerText = appData.highScore.toLocaleString(); }
+            document.getElementById('start-btn').classList.remove('hidden'); document.getElementById('result-score').innerText = gameState.score.toLocaleString();
+            if(isNewRecord) { document.getElementById('highscore-msg').classList.remove('hidden'); } else { document.getElementById('highscore-msg').classList.add('hidden'); }
+            document.getElementById('modal-gameover').classList.remove('hidden');
+        }
+
+        function pullGacha(times) {
+            if(isGachaPlaying) return;
+            const cost = times * 1000;
+            if(appData.points < cost) { alert("LoveMikiポイントが足りないよ！"); return; }
+            isGachaPlaying = true; document.getElementById('gacha-btn-1').disabled = true; document.getElementById('gacha-btn-10').disabled = true;
+            document.getElementById('gacha-pack-img').src = 'cardpack.jpg'; 
+            setTimeout(() => {
+                appData.points -= cost; let results = [];
+                for(let i=0; i<times; i++) {
+                    let r = Math.random() * 100;
+                    let rarity = (appData.totalGachaCount >= 30 && r < 1.5) ? 'LR' : (r < 5 ? 'SSR' : (r < 15 ? 'SR' : (r < 40 ? 'R' : 'N')));
+                    let pool = ITEMS.filter(item => item.rarity === rarity);
+                    let item = pool[Math.floor(Math.random() * pool.length)];
+                    results.push(item); appData.totalGachaCount++;
+                    if(!appData.items.includes(item.id)) appData.items.push(item.id);
+                }
+                saveData(); showGachaResult(results);
+                isGachaPlaying = false; document.getElementById('gacha-btn-1').disabled = false; document.getElementById('gacha-btn-10').disabled = false;
+            }, 1000);
+        }
+
+        function showGachaResult(results) {
+            const list = document.getElementById('gacha-result-list'); list.innerHTML = '';
+            list.className = (results.length === 1) ? 'flex justify-center mb-6' : 'grid grid-cols-2 gap-3 mb-6';
+            results.forEach(item => {
+                let div = document.createElement('div');
+                div.className = `${item.color} rounded-xl p-2 text-center shadow border-2 border-white cursor-pointer aspect-square flex flex-col items-center justify-center relative`;
+                div.onclick = () => showImageModal(item);
+                
+                let isVoiceUnlocked = (appData.lapCount >= item.reqLap);
+                let voiceIcon = isVoiceUnlocked ? `<div class="absolute top-1 right-2 bg-pink-500 rounded-full w-4 h-4 flex items-center justify-center text-white text-[9px] shadow" style="text-shadow: 0px 0px 1px rgba(0,0,0,0.5);">♫</div>` : '';
+                
+                div.innerHTML = `<div class="text-[10px] font-bold opacity-70">${item.rarity}</div><img src="${item.file}.jpg" class="w-16 h-16 rounded-lg object-cover bg-white mt-1">${voiceIcon}<div class="text-[10px] font-bold mt-1">${item.name}</div>`;
+                list.appendChild(div);
+            });
+            document.getElementById('modal-gacha').classList.remove('hidden');
+            if(document.getElementById('view-collection').classList.contains('hidden') === false) renderCollection();
+        }
+
+        function renderCollection() {
+            const grid = document.getElementById('collection-grid'); grid.innerHTML = '';
+            let obtained = 0;
+            
+            ITEMS.forEach(item => {
+                let has = appData.items.includes(item.id);
+                if(has) obtained++;
+                
+                let wrapper = document.createElement('div');
+                wrapper.className = 'flex flex-col items-center w-full';
+
+                let div = document.createElement('div');
+                div.className = 'w-full aspect-square rounded-xl shadow flex flex-col items-center justify-center relative border border-gray-200 cursor-pointer overflow-hidden transition transform hover:scale-105';
+                
+                let statusText = '';
+                if(has) {
+                    div.classList.add(...item.color.split(' '));
+                    div.onclick = () => showImageModal(item);
+                    let isVoiceUnlocked = (appData.lapCount >= item.reqLap);
+                    
+                    let voiceIcon = isVoiceUnlocked ? `<div class="absolute top-1 right-2 bg-pink-500 rounded-full w-5 h-5 flex items-center justify-center text-white text-[10px] shadow" style="text-shadow: 0px 0px 1px rgba(0,0,0,0.5);">♫</div>` : '';
+                    div.innerHTML = `<div class="absolute top-1 left-1 text-[10px] font-bold opacity-50">${item.rarity}</div>${voiceIcon}<img src="${item.file}.jpg" class="w-20 h-20 rounded-lg object-cover bg-white mb-1"><div class="text-[10px] font-bold">${item.name}</div>`;
+                    
+                    statusText = isVoiceUnlocked ? '<span class="text-pink-500 font-bold text-xs">ボイス獲得済♪</span>' : `<span class="text-gray-400 text-[10px]">転生${item.reqLap}回目でボイス解放</span>`;
+                } else {
+                    div.className += ' bg-gray-200'; div.innerHTML = '<span class="text-3xl text-gray-400 font-bold opacity-50">?</span>';
+                    statusText = `<span class="text-gray-300 text-[10px]">転生${item.reqLap}回目でボイス解放</span>`;
+                }
+                
+                let label = document.createElement('div');
+                label.className = 'mt-1.5 text-center font-bold tracking-tight w-full leading-tight';
+                label.innerHTML = statusText;
+                
+                wrapper.appendChild(div);
+                wrapper.appendChild(label);
+                grid.appendChild(wrapper);
+            });
+            
+            const rate = Math.floor((obtained / ITEMS.length) * 100);
+            document.getElementById('collection-rate').innerText = rate;
+
+            const rewardBtn50 = document.getElementById('reward-btn-50');
+            if(rate >= 50 || appData.lapCount > 0) {
+                rewardBtn50.disabled = false;
+                rewardBtn50.className = "w-full bg-gradient-to-r from-yellow-400 to-orange-400 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition shadow-lg animate-pulse";
+                rewardBtn50.innerHTML = "📣 ボイスを再生！ 📣";
+            } else {
+                rewardBtn50.disabled = true;
+                rewardBtn50.className = "w-full bg-gray-300 text-gray-500 font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 cursor-not-allowed transition";
+                rewardBtn50.innerHTML = "🔒 50%コンプで解放！";
+            }
+
+            const reward100Container = document.getElementById('reward-100-container');
+            reward100Container.innerHTML = '';
+            
+            if(rate === 100 || appData.lapCount > 0) {
+                let html = '<p class="text-xs text-gray-600 mb-2 font-bold">【👑 スペシャルボイス報酬 👑】<br><span class="text-[10px] text-gray-400">→転生するごとに「歌ってみた」が解放されるよ！</span></p>';
+                html += '<div class="grid grid-cols-2 gap-2">';
+                
+                const ytNumbers = ["", "①", "②", "③", "④", "⑤"];
+                
+                for(let i = 0; i <= 5; i++) {
+                    let isUnlocked = (i === 0) ? true : (appData.lapCount >= i);
+                    
+                    if(isUnlocked) {
+                        if(i === 0) {
+                            html += `<button onclick="playVoiceAndStopYouTube('voice-reward-comp')" class="w-full bg-gradient-to-r from-pink-400 to-purple-400 text-white text-[11px] font-bold py-3 px-1 rounded-lg flex items-center justify-center hover:opacity-90 transition shadow animate-pulse whitespace-nowrap">💖 ボイス再生 💖</button>`;
+                        } else {
+                            html += `<button id="yt-btn-${i}" data-title="歌${ytNumbers[i]}再生" onclick="playYouTubeReward('${rewardYtIds[i-1]}', 'yt-btn-${i}')" class="w-full bg-gradient-to-r from-blue-400 to-cyan-400 text-white text-[11px] font-bold py-3 px-1 rounded-lg flex items-center justify-center hover:opacity-90 transition shadow animate-pulse whitespace-nowrap">💖 歌${ytNumbers[i]}再生 💖</button>`;
+                        }
+                    } else {
+                        let lockedText = (i === 0) ? "未転生" : `転生${i}回目`;
+                        html += `<button disabled class="w-full bg-gray-200 text-gray-400 text-[11px] font-bold py-3 px-1 rounded-lg flex items-center justify-center cursor-not-allowed border border-gray-300 whitespace-nowrap">🔒 ${lockedText}</button>`;
+                    }
+                }
+                
+                html += '</div>';
+                reward100Container.innerHTML = html;
+                document.getElementById('rebirth-container').classList.remove('hidden');
+                
+                if(rate < 100) {
+                    let textElem = document.createElement('p');
+                    textElem.className = "text-[10px] text-gray-500 font-bold mt-3";
+                    textElem.innerText = "※100%コンプすると次の周へ転生できるようになります！";
+                    reward100Container.appendChild(textElem);
+                    document.getElementById('rebirth-container').classList.add('hidden');
+                }
+            } else {
+                reward100Container.innerHTML = `
+                    <p class="text-xs text-gray-600 mb-2 font-bold">図鑑100%達成！(転生特典あり👑)<br><span class="text-[10px] text-gray-400">→転生するごとに「歌ってみた」が解放されるよ！</span></p>
+                    <button disabled class="w-full bg-gray-300 text-gray-500 font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 cursor-not-allowed transition">🔒 100%コンプで解放！</button>
+                `;
+                document.getElementById('rebirth-container').classList.add('hidden');
+            }
+        }
+
+        function showImageModal(item) {
+            document.getElementById('enlarged-image').src = `${item.file}.jpg`;
+            document.getElementById('enlarged-name').innerText = item.name;
+            
+            const statusEl = document.getElementById('enlarged-voice-status');
+            const audioPlayer = document.getElementById('card-voice-player');
+            
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+
+            if (appData.lapCount >= item.reqLap) {
+                statusEl.className = "text-white text-sm font-bold bg-pink-500 px-4 py-1 rounded-full mb-4 animate-bounce";
+                statusEl.innerHTML = "🔊 ボイス再生中！";
+                audioPlayer.src = `${item.file}.m4a`;
+                audioPlayer.play().catch(e => { statusEl.innerHTML = "🔇 タップして再生"; });
+            } else {
+                statusEl.className = "text-white text-sm font-bold bg-gray-800/80 px-4 py-1 rounded-full mb-4";
+                statusEl.innerHTML = `🔒 転生${item.reqLap}回目でボイス解放`;
+            }
+
+            document.getElementById('modal-image').classList.remove('hidden');
+        }
+
+        function playVoiceAndStopYouTube(audioId) {
+            try {
+                if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+                    ytPlayer.pauseVideo();
+                }
+            } catch(e) {}
+            
+            const audio = document.getElementById(audioId);
+            if (audio) {
+                audio.currentTime = 0;
+                audio.play().catch(e => {
+                    console.error(e);
+                    alert(`音声の再生に失敗したよ😭\n※「daisuki.aac」がNetlifyにアップされているか確認してね！`);
+                });
+            }
+        }
+
+        function playYouTubeReward(videoId, btnId) {
+            try { document.getElementById('voice-reward-comp').pause(); } catch(e) {}
+
+            if(!ytPlayer || typeof ytPlayer.loadVideoById !== 'function') {
+                alert("YouTubeの準備中です！数秒待ってからもう一度押してね！");
+                return;
+            }
+            
+            if(currentPlayingBtnId && currentPlayingBtnId !== btnId) {
+                let oldBtn = document.getElementById(currentPlayingBtnId);
+                if(oldBtn) {
+                    let oldTitle = oldBtn.getAttribute('data-title');
+                    oldBtn.innerHTML = `💖 ${oldTitle} 💖`;
+                    oldBtn.classList.add('animate-pulse');
+                }
+            }
+
+            const btn = document.getElementById(btnId);
+            btn.innerHTML = "⏳ 読み込み中…";
+            btn.classList.remove('animate-pulse');
+            
+            currentPlayingBtnId = btnId;
+            ytPlayer.loadVideoById(videoId);
+        }
+
+        function doRebirth() {
+            if(confirm("図鑑の達成率が0%に戻りますが、タイトルに王冠(👑)が追加されます！\n（LoveMikiポイントとハイスコアはそのまま引き継がれます）\n本当に転生しますか？")) {
+                appData.items = []; appData.totalGachaCount = 0; appData.lapCount++;
+                saveData(); renderCollection();
+                alert(`👑 おめでとうございます！\n${appData.lapCount}周目に突入しました！\n新しいボイスが解放されたよ！`);
+            }
+        }
+
+        function exportData() {
+            try {
+                const encoded = btoa(encodeURIComponent(JSON.stringify(appData)));
+                prompt("この「ふっかつのじゅもん」を全てコピーして、LINEのKeepやメモ帳に保存してね！", encoded);
+            } catch(e) { alert("じゅもんの作成に失敗しました💦"); }
+        }
+
+        function importData() {
+            const input = prompt("保存しておいた「ふっかつのじゅもん」を貼り付けてね！");
+            if(input) {
+                try {
+                    const decoded = JSON.parse(decodeURIComponent(atob(input)));
+                    if(decoded && typeof decoded.points !== 'undefined') {
+                        appData = decoded; saveData();
+                        alert("じゅもんが正しく唱えられました！データが復元されたよ！👑");
+                        location.reload();
+                    } else { throw new Error("Format error"); }
+                } catch(e) {
+                    alert("じゅもんが間違っているみたい…！😭");
+                }
+            }
+        }
+
+        function closeModal(id) { 
+            document.getElementById(id).classList.add('hidden'); 
+            if(id === 'modal-image') document.getElementById('card-voice-player').pause();
+        }
+        function switchTab(id) {
+            if(isGachaPlaying) return;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`tab-${id}`).classList.add('active');
+            document.getElementById('view-game').classList.add('hidden'); document.getElementById('view-gacha').classList.add('hidden'); document.getElementById('view-collection').classList.add('hidden');
+            document.getElementById(`view-${id}`).classList.remove('hidden');
+            if(id === 'game') document.getElementById('view-game').classList.add('flex');
+            if(id === 'gacha') document.getElementById('view-gacha').classList.add('flex');
+            if(id === 'collection') renderCollection();
+        }
+
+        window.onload = () => { loadData(); initGridHTML(); switchTab('game'); };
+    </script>
+</body>
+</html>
